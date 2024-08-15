@@ -1,0 +1,51 @@
+from flask import Flask,render_template,Response
+import cv2
+
+
+app=Flask(__name__)
+camera=cv2.VideoCapture(0) # Access the camera
+
+def gen_frames():
+    while True:
+        success,frame=camera.read()  # Read the camera Frame
+        if not success:
+            break
+        else:
+            
+            detector=cv2.CascadeClassifier('Haarcascades\haarcascade_frontalface_default.xml')
+            eye_cascade=cv2.CascadeClassifier('Haarcascades\haarcascade_eye.xml')
+            faces=detector.detectMultiScale(frame,1.1,7)
+            gray=cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+
+            # Draw the rectange around the faces
+            
+            for (x,y,w,h) in faces:
+                cv2.rectangle(frame,(x,y),(x+w,y+h),(255,0,0),2) # w- width, h - Height
+                roi_gray=gray[y:y+h,x:x+w]
+                roi_color=frame[y:y+h,x:x+w]
+                eyes=eye_cascade.detectMultiScale(roi_gray,1.1,3)
+                for (ex,ey,ew,eh) in eyes:
+                    cv2.rectangle(roi_color,(ex,ey),(ex+ew,ey+eh),(0,255,0),2)
+
+
+
+
+            ret,buffer=cv2.imencode('.jpeg',frame) # encoding
+            frame=buffer.tobytes()
+        
+            yield(b'--frame\r\n'
+                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')  # Open cv documentation Page
+
+
+
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/video')  # I have to create html content , this html should continuously hit the url to take the streaming data in index, 
+def video():          # Here we will provide all the frames that I am getting from the webcam, give it to index.tml
+    return Response(gen_frames(),mimetype='multipart/x-mixed-replace; boundary=frame')  # Func(generate frames) :- will be taking the frames from the webcam, pass to index
+
+if __name__=="__main__":
+    app.run(debug=True)
